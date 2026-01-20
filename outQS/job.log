@@ -1,0 +1,47 @@
+2026-01-15 16:49:41,368 [INFO] Iniciando sesión en https://accounts.copiloto.ai/v1/sign-in...
+2026-01-15 16:49:42,462 [INFO] Token obtenido correctamente.
+2026-01-15 16:49:42,467 [INFO] Descargando CSV desde https://api.copiloto.ai/wicar-report/report-files/vehicle-records...
+2026-01-15 16:49:44,592 [INFO] CSV descargado: C:\Users\ssanchezr\OneDrive - grupokaufmann\Documentos\Dev\sotraserBot\outQS\vehicles_records_20260115_194943.csv
+2026-01-15 16:49:44,718 [INFO] Status flota cargado: 17836 filas
+2026-01-15 16:49:44,718 [INFO] Cargando Master desde: C:\Users\ssanchezr\OneDrive - grupokaufmann\Documentos\Dev\sotraserBot\inputs\master_Flota.xlsx
+2026-01-15 16:49:45,961 [INFO] Master flota cargado: 132 filas
+2026-01-15 16:49:46,075 [INFO] Realizando Merge...
+2026-01-15 16:49:46,104 [INFO] Resultado Merge (Inner): 127 filas
+2026-01-15 16:49:47,410 [ERROR] Error en app.py: Excel does not support datetimes with timezones. Please ensure that datetimes are timezone unaware before writing to Excel.
+Traceback (most recent call last):
+  File "C:\Users\ssanchezr\OneDrive - grupokaufmann\Documentos\Dev\sotraserBot\app.py", line 193, in main
+    df_merged.to_excel(out_path_merged, index=False)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\ssanchezr\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pandas\util\_decorators.py", line 333, in wrapper
+    return func(*args, **kwargs)
+  File "C:\Users\ssanchezr\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pandas\core\generic.py", line 2439, in to_excel
+    formatter.write(
+    ~~~~~~~~~~~~~~~^
+        excel_writer,
+        ^^^^^^^^^^^^^
+    ...<6 lines>...
+        engine_kwargs=engine_kwargs,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\ssanchezr\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pandas\io\formats\excel.py", line 952, in write
+    writer._write_cells(
+    ~~~~~~~~~~~~~~~~~~~^
+        formatted_cells,
+        ^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+        freeze_panes=freeze_panes,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\ssanchezr\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pandas\io\excel\_xlsxwriter.py", line 261, in _write_cells
+    for cell in cells:
+                ^^^^^
+  File "C:\Users\ssanchezr\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pandas\io\formats\excel.py", line 890, in get_formatted_cells
+    cell.val = self._format_value(cell.val)
+               ~~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Users\ssanchezr\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pandas\io\formats\excel.py", line 607, in _format_value
+    raise ValueError(
+    ...<3 lines>...
+    )
+ValueError: Excel does not support datetimes with timezones. Please ensure that datetimes are timezone unaware before writing to Excel.

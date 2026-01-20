@@ -1,0 +1,8 @@
+[theme]
+base = "dark"
+
+primaryColor = "#22c55e"        # verde OK
+backgroundColor = "#0b1220"     # fondo general
+secondaryBackgroundColor = "#111827"  # cards / sidebar
+textColor = "#e5e7eb"           # texto claro
+font = "sans serif"
