@@ -1,5 +1,7 @@
-pandas
-numpy
-requests
-openpyxl
-python-dateutil
+streamlit>=1.31
+pandas>=2.1
+numpy>=1.26
+plotly>=5.18
+openpyxl>=3.1
+requests>=2.31
+python-dateutil>=2.9
