@@ -239,6 +239,10 @@ def hbar_counts(title: str, counts: pd.DataFrame):
 # =========================
 # LOADS
 # =========================
+# =========================
+# LOADS
+# =========================
+
 STATUS_PREFIX = "vehicles_records_"
 
 def latest_csv_by_prefix(folder: Path, prefix: str) -> Path | None:
@@ -265,27 +269,6 @@ def load_status_df() -> tuple[pd.DataFrame, Path]:
     df = pd.read_csv(path)
     df = compute_connectivity(df)
     return df, path
-
-@st.cache_data(ttl=300)
-def load_master_df() -> pd.DataFrame:
-    ensure_file_exists(MASTER_XLSX, "master_Flota.xlsx")
-
-    xls = pd.ExcelFile(MASTER_XLSX)
-    sheet = xls.sheet_names[0]
-    m = xls.parse(sheet_name=sheet, dtype=str)
-    m.columns = [c.strip() for c in m.columns]
-
-    candidates = ["IMEI", "IMEI_master", "imei", "Imei", "IMEI_status"]
-    col_imei = next((c for c in candidates if c in m.columns), None)
-
-    if col_imei is None:
-        st.error(f"El master debe tener columna IMEI (ej: IMEI_master). Columnas: {list(m.columns)}")
-        st.stop()
-
-    m = m.rename(columns={col_imei: "IMEI"})
-    m["IMEI"] = norm_str_series(m["IMEI"])
-
-    return m
 
 # =========================
 # MAIN
