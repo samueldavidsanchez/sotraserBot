@@ -13,8 +13,11 @@ BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 INPUTS_DIR = BASE_DIR / "inputs"
 
-STATUS_FIXED = Path("___no_usar___")  # opcional: si no lo usas nunca, puedes eliminarlo
+# Si NO usas master_ready.csv, déjalo así (no existe y no se usará)
+STATUS_FIXED = Path("___no_usar___")
 MASTER_XLSX = INPUTS_DIR / "master_Flota.xlsx"
+
+STATUS_PREFIX = "vehicles_records_"
 
 ORDER4 = ["Conectado 0-2", "Intermitente 3-14", "Limitado 15-30+", "Desconectado 31+"]
 PROBLEM_LABELS = ["Intermitente 3-14", "Limitado 15-30+", "Desconectado 31+"]
@@ -25,13 +28,9 @@ PROBLEM_LABELS = ["Intermitente 3-14", "Limitado 15-30+", "Desconectado 31+"]
 def norm_str_series(s: pd.Series) -> pd.Series:
     return s.astype(str).str.strip()
 
-def latest_csv_in(folder: Path) -> Path | None:
-    files = sorted(folder.glob("*.csv"), key=lambda p: p.stat().st_mtime, reverse=True)
-    return files[0] if files else None
-
 def ensure_file_exists(p: Path, friendly: str):
     if not p.exists():
-        st.error(f"No existe el archivo: {p}\n\nCrea/copia {friendly} en esa ruta.")
+        st.error(f"No existe el archivo: {p}\n\nCrea/copia **{friendly}** en esa ruta.")
         st.stop()
 
 def normalize_status_columns(df: pd.DataFrame) -> pd.DataFrame:
@@ -46,17 +45,20 @@ def normalize_status_columns(df: pd.DataFrame) -> pd.DataFrame:
         df = df.rename(columns=rename_map)
     return df
 
+def latest_csv_by_prefix(folder: Path, prefix: str) -> Path | None:
+    files = sorted(folder.glob(f"{prefix}*.csv"), key=lambda p: p.stat().st_mtime, reverse=True)
+    return files[0] if files else None
+
 def clasificar_4rangos(ts: pd.Series, dias: pd.Series) -> pd.Categorical:
     """
     4 rangos:
       - Conectado 0-2
       - Intermitente 3-14
       - Limitado 15-30+
-      - Desconectado 31+   (incluye NaT/Nunca)
+      - Desconectado 31+ (incluye NaT/Nunca)
     """
     out = pd.Series(index=dias.index, dtype="object")
 
-    # NaT => Desconectado 31+
     is_na_ts = ts.isna()
     out[is_na_ts] = "Desconectado 31+"
 
@@ -64,7 +66,7 @@ def clasificar_4rangos(ts: pd.Series, dias: pd.Series) -> pd.Categorical:
     out[m & (dias <= 2)]                           = "Conectado 0-2"
     out[m & dias.between(3, 14, inclusive="both")]  = "Intermitente 3-14"
     out[m & dias.between(15, 30, inclusive="both")] = "Limitado 15-30+"
-    out[m & (dias >= 31)]                           = "Desconectado 31+"
+    out[m & (dias >= 31)]                          = "Desconectado 31+"
 
     return pd.Categorical(out, categories=ORDER4, ordered=True)
 
@@ -166,7 +168,6 @@ def gauge_card_v2(
         paper_bgcolor=bg,
         plot_bgcolor=bg,
     )
-
     fig.add_annotation(
         x=0.5, y=0.50,
         text=f"<span style='color:{txt}; font-size:40px; font-weight:800;'>{ok_pct:.2f}%</span>",
@@ -239,16 +240,6 @@ def hbar_counts(title: str, counts: pd.DataFrame):
 # =========================
 # LOADS
 # =========================
-# =========================
-# LOADS
-# =========================
-
-STATUS_PREFIX = "vehicles_records_"
-
-def latest_csv_by_prefix(folder: Path, prefix: str) -> Path | None:
-    files = sorted(folder.glob(f"{prefix}*.csv"), key=lambda p: p.stat().st_mtime, reverse=True)
-    return files[0] if files else None
-
 @st.cache_data(ttl=300)
 def load_status_df() -> tuple[pd.DataFrame, Path]:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -270,16 +261,60 @@ def load_status_df() -> tuple[pd.DataFrame, Path]:
     df = compute_connectivity(df)
     return df, path
 
+@st.cache_data(ttl=300)
+def load_master_df() -> pd.DataFrame:
+    ensure_file_exists(MASTER_XLSX, "master_Flota.xlsx")
+
+    xls = pd.ExcelFile(MASTER_XLSX)
+    sheet = xls.sheet_names[0]
+    m = xls.parse(sheet_name=sheet, dtype=str)
+    m.columns = [c.strip() for c in m.columns]
+
+    # ✅ Tu master real trae IMEI_master / IMEI_status, etc.
+    candidates = [
+        "IMEI", "imei", "Imei",
+        "IMEI_master", "imei_master",
+        "IMEI_status", "imei_status",
+    ]
+    col_imei = next((c for c in candidates if c in m.columns), None)
+
+    if col_imei is None:
+        st.error(
+            "El master debe tener columna IMEI.\n\n"
+            f"Busqué: {candidates}\n"
+            f"Columnas encontradas: {list(m.columns)}"
+        )
+        st.stop()
+
+    m = m.rename(columns={col_imei: "IMEI"})
+    m["IMEI"] = norm_str_series(m["IMEI"])
+
+    # Opcional: normaliza VIN / patente si existen (para búsquedas)
+    if "VIN" not in m.columns:
+        for c in ["VIN_master", "VIN_status", "vin", "vin_master", "vin_status"]:
+            if c in m.columns:
+                m = m.rename(columns={c: "VIN"})
+                break
+    if "license_plate" not in m.columns:
+        for c in ["Patente", "patente", "license_plate_status", "license_plate_master"]:
+            if c in m.columns:
+                m = m.rename(columns={c: "license_plate"})
+                break
+
+    return m
+
 # =========================
 # MAIN
 # =========================
 df_status, used_path = load_status_df()
 df_master = load_master_df()
 
+# Filtrar por master
 df_status["IMEI"] = norm_str_series(df_status["IMEI"])
 allowed = set(df_master["IMEI"])
 df_f = df_status[df_status["IMEI"].isin(allowed)].copy()
 
+# Sidebar filtros mínimos
 st.sidebar.title("Filtros")
 q = st.sidebar.text_input("Buscar (IMEI/VIN/Patente)", value="").strip().upper()
 
@@ -290,6 +325,7 @@ if q:
         mask = mask | df_f[c].fillna("").astype(str).str.upper().str.contains(q, regex=False)
     df_f = df_f[mask].copy()
 
+# KPIs + Gauges
 total = len(df_f)
 
 tele_ok = int(((df_f["can_timestamp"].notna()) & (df_f["days_can"] <= 30)).sum()) if total else 0
@@ -301,6 +337,7 @@ gps_pct = safe_pct(gps_ok, total)
 tele_counts = df_f["estado_telemetria"].value_counts().reindex(ORDER4).fillna(0).astype(int).to_frame("unidades")
 gps_counts = df_f["gps_status_any"].value_counts().reindex(ORDER4).fillna(0).astype(int).to_frame("unidades")
 
+# UI
 st.title("Dashboard de Conectividad")
 
 st.caption(
@@ -317,6 +354,7 @@ with g1:
         tele_pct, tele_ok, total,
         thresholds=(80, 60)
     )
+
 with g2:
     gauge_card_v2(
         "Conectividad GPS Copiloto",
