@@ -13,7 +13,7 @@ BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 INPUTS_DIR = BASE_DIR / "inputs"
 
-STATUS_FIXED = Path("___no_usar___")  # o simplemente borra el bloque que lo usa
+STATUS_FIXED = Path("___no_usar___")  # opcional: si no lo usas nunca, puedes eliminarlo
 MASTER_XLSX = INPUTS_DIR / "master_Flota.xlsx"
 
 ORDER4 = ["Conectado 0-2", "Intermitente 3-14", "Limitado 15-30+", "Desconectado 31+"]
@@ -67,7 +67,6 @@ def clasificar_4rangos(ts: pd.Series, dias: pd.Series) -> pd.Categorical:
     out[m & (dias >= 31)]                           = "Desconectado 31+"
 
     return pd.Categorical(out, categories=ORDER4, ordered=True)
-
 
 def safe_pct(num, den):
     den = float(den) if den else 0.0
@@ -136,7 +135,6 @@ def gauge_card_v2(
     else:
         arc_color = "#ef4444"
 
-    # ---- CARD HEADER ----
     st.markdown(
         f"""
         <div style="background:{bg}; padding:16px 16px 12px 16px; border-radius:16px; border:1px solid #1f2a44;">
@@ -151,7 +149,6 @@ def gauge_card_v2(
         unsafe_allow_html=True
     )
 
-    # ---- GAUGE FIG ----
     fig = go.Figure()
     fig.add_trace(go.Pie(
         values=[ok_pct, 100 - ok_pct],
@@ -170,19 +167,16 @@ def gauge_card_v2(
         plot_bgcolor=bg,
     )
 
-    # % grande al centro
     fig.add_annotation(
         x=0.5, y=0.50,
         text=f"<span style='color:{txt}; font-size:40px; font-weight:800;'>{ok_pct:.2f}%</span>",
         showarrow=False
     )
-    # etiquetas 0 y 100 abajo
     fig.add_annotation(x=0.06, y=0.06, text=f"<span style='color:{sub}; font-size:12px;'>0</span>", showarrow=False)
     fig.add_annotation(x=0.94, y=0.06, text=f"<span style='color:{sub}; font-size:12px;'>100</span>", showarrow=False)
 
     st.plotly_chart(fig, use_container_width=True)
 
-    # ---- METRICS ROW (alineado) ----
     c1, c2, c3, c4, c5 = st.columns([1.2, 1.2, 1.3, 1.1, 1.1])
     with c1:
         st.markdown(f"<div style='color:{sub}; font-size:12px;'>Total</div><div style='color:{txt}; font-size:20px; font-weight:800;'>{total:,}</div>", unsafe_allow_html=True)
@@ -195,8 +189,6 @@ def gauge_card_v2(
     with c5:
         st.markdown(f"<div style='color:{sub}; font-size:12px;'>% Offline</div><div style='color:{txt}; font-size:20px; font-weight:800;'>{offline_pct:.2f}%</div>", unsafe_allow_html=True)
 
-    # ---- OFFLINE % como "histograma" (barra horizontal) ----
-    # estilo progress bar
     bar_bg = "#111827"
     offline_color = "#ef4444" if offline_pct >= 30 else ("#f59e0b" if offline_pct >= 15 else "#22c55e")
     st.markdown(
@@ -221,14 +213,11 @@ def gauge_card_v2(
 def hbar_counts(title: str, counts: pd.DataFrame):
     st.markdown(f"### {title}")
 
-    # Reset index y renombrar SIEMPRE la primera columna a "Estado"
     d = counts.reset_index()
     first_col = d.columns[0]
     d = d.rename(columns={first_col: "Estado"})
 
-    # asegurar que exista "unidades"
     if "unidades" not in d.columns:
-        # por si viene con otro nombre, toma la segunda columna como valor
         value_col = d.columns[1]
         d = d.rename(columns={value_col: "unidades"})
 
@@ -250,21 +239,19 @@ def hbar_counts(title: str, counts: pd.DataFrame):
 # =========================
 # LOADS
 # =========================
-@st.cache_data(ttl=300)
 STATUS_PREFIX = "vehicles_records_"
 
 def latest_csv_by_prefix(folder: Path, prefix: str) -> Path | None:
     files = sorted(folder.glob(f"{prefix}*.csv"), key=lambda p: p.stat().st_mtime, reverse=True)
     return files[0] if files else None
 
+@st.cache_data(ttl=300)
 def load_status_df() -> tuple[pd.DataFrame, Path]:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-    # 1) si existe master_ready.csv (opcional), úsalo
     if STATUS_FIXED.exists():
         path = STATUS_FIXED
     else:
-        # 2) si no, usar el último vehicles_records_*.csv (el del día)
         last = latest_csv_by_prefix(DATA_DIR, STATUS_PREFIX)
         if last is None:
             st.error(
@@ -288,7 +275,6 @@ def load_master_df() -> pd.DataFrame:
     m = xls.parse(sheet_name=sheet, dtype=str)
     m.columns = [c.strip() for c in m.columns]
 
-    # ✅ Detectar IMEI en tu master real
     candidates = ["IMEI", "IMEI_master", "imei", "Imei", "IMEI_status"]
     col_imei = next((c for c in candidates if c in m.columns), None)
 
@@ -307,12 +293,10 @@ def load_master_df() -> pd.DataFrame:
 df_status, used_path = load_status_df()
 df_master = load_master_df()
 
-# Filtrar por master
 df_status["IMEI"] = norm_str_series(df_status["IMEI"])
 allowed = set(df_master["IMEI"])
 df_f = df_status[df_status["IMEI"].isin(allowed)].copy()
 
-# Sidebar filtros mínimos
 st.sidebar.title("Filtros")
 q = st.sidebar.text_input("Buscar (IMEI/VIN/Patente)", value="").strip().upper()
 
@@ -323,9 +307,6 @@ if q:
         mask = mask | df_f[c].fillna("").astype(str).str.upper().str.contains(q, regex=False)
     df_f = df_f[mask].copy()
 
-# =========================
-# KPIs + GAUGES
-# =========================
 total = len(df_f)
 
 tele_ok = int(((df_f["can_timestamp"].notna()) & (df_f["days_can"] <= 30)).sum()) if total else 0
@@ -337,9 +318,6 @@ gps_pct = safe_pct(gps_ok, total)
 tele_counts = df_f["estado_telemetria"].value_counts().reindex(ORDER4).fillna(0).astype(int).to_frame("unidades")
 gps_counts = df_f["gps_status_any"].value_counts().reindex(ORDER4).fillna(0).astype(int).to_frame("unidades")
 
-# =========================
-# UI
-# =========================
 st.title("Dashboard de Conectividad")
 
 st.caption(
@@ -356,7 +334,6 @@ with g1:
         tele_pct, tele_ok, total,
         thresholds=(80, 60)
     )
-
 with g2:
     gauge_card_v2(
         "Conectividad GPS Copiloto",
@@ -364,7 +341,6 @@ with g2:
         gps_pct, gps_ok, total,
         thresholds=(85, 70)
     )
-
 
 b1, b2 = st.columns(2)
 with b1:
@@ -387,5 +363,3 @@ show_cols = [c for c in [
 
 df_probs = df_probs.sort_values(["days_can", "days_gps"], ascending=False, na_position="last")
 st.dataframe(df_probs[show_cols].head(300), use_container_width=True)
-
-#st.caption("Local — solo conectividad (Telemetría + GPS global) filtrado por master.")
